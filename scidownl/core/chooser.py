@@ -58,7 +58,7 @@ class RandomScihubUrlChooser(ScihubUrlChooser):
             return selected_url
 
     def __len__(self):
-        return len(self.temp_zone)
+        return len(self.scihub_urls)
 
 
 class AvailabilityFirstScihubUrlChooser(ScihubUrlChooser):

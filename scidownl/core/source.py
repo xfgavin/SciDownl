@@ -10,6 +10,7 @@ class DoiSource(BaseSource):
     """A DOI source dict."""
 
     DOI_PROTOCOLS = ["http://", "https://"]
+    DOI_URL_PREFIXES = ["doi.org/", "dx.doi.org/"]
 
     def __init__(self, doi: str):
         super().__init__()
@@ -30,6 +31,9 @@ class DoiSource(BaseSource):
 
         for proto in DoiSource.DOI_PROTOCOLS:
             doi = doi.replace(proto, "")
+        for prefix in DoiSource.DOI_URL_PREFIXES:
+            if doi.startswith(prefix):
+                doi = doi[len(prefix):]
         return doi
 
     @staticmethod

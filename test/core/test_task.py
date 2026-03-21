@@ -1,3 +1,4 @@
+import os
 import shutil
 import unittest
 
@@ -34,7 +35,8 @@ class TestTask(unittest.TestCase):
                 task.run()
             except Exception as e:
                 logger.error(f"final status: {task.context['status']}, error: {task.context['error']}")
-        shutil.rmtree(tmp_paper_dir)
+        if os.path.exists(tmp_paper_dir):
+            shutil.rmtree(tmp_paper_dir)
 
     def test_run_one_task(self):
 
@@ -44,7 +46,8 @@ class TestTask(unittest.TestCase):
             source_type="doi",
             out=tmp_paper_dir
         ).run()
-        shutil.rmtree(tmp_paper_dir)
+        if os.path.exists(tmp_paper_dir):
+            shutil.rmtree(tmp_paper_dir)
 
     def test_run_one_task_with_proxies(self):
 
@@ -58,7 +61,8 @@ class TestTask(unittest.TestCase):
                 'https': 'socks5://127.0.0.1:7890'
             }
         ).run()
-        shutil.rmtree(tmp_paper_dir)
+        if os.path.exists(tmp_paper_dir):
+            shutil.rmtree(tmp_paper_dir)
 
 
 if __name__ == '__main__':

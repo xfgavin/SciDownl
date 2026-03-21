@@ -30,5 +30,9 @@ class ExtractException(Exception):
     """Raised if error occurs when extracting."""
 
 
+class CaptchaException(ExtractException):
+    """Raised if Sci-Hub returns a captcha page."""
+
+
 class DownloadException(Exception):
     """Raised if error occurs when downloading."""

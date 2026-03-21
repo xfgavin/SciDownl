@@ -8,7 +8,7 @@ from .base import BaseExtractor, BaseInformation, BaseTask, BaseTaskStep
 from .content import HtmlContent
 from .information import PdfUrlTitleInformation, UrlInformation
 from .chooser import scihub_url_choosers, AvailabilityFirstScihubUrlChooser
-from ..exception import PdfTagNotFoundException, PdfUrlNotFoundException, ExtractException
+from ..exception import PdfTagNotFoundException, PdfUrlNotFoundException, ExtractException, CaptchaException
 from ..db.service import ScihubUrlService
 from ..log import get_logger
 from ..config import get_config
@@ -83,28 +83,68 @@ class HtmlPdfExtractor(BaseExtractor, BaseTaskStep):
             url = referer + url
         return url
 
+    # Fallback selectors to try when the primary selector fails.
+    # Sci-Hub has changed its HTML structure over time:
+    #   - Old: <embed id="pdf" src="...">
+    #   - New: <object type="application/pdf" data="...">
+    FALLBACK_SELECTORS = [
+        ('object[type="application/pdf"]', 'data'),
+        ('#pdf', 'src'),
+        ('embed[type="application/pdf"]', 'src'),
+        ('iframe', 'src'),
+    ]
+
     def _extract_raw_url(self) -> str:
         """Extract pdf url from html content."""
         soup = BeautifulSoup(self.content.content, self._parser)
+
+        # Detect captcha pages served by Sci-Hub
+        title_tag = soup.title
+        if title_tag and 'robot' in title_tag.text.lower():
+            raise CaptchaException("Sci-Hub returned a captcha page. Try again later or use a different domain.")
+        if soup.find('div', class_='question'):
+            raise CaptchaException("Sci-Hub returned a captcha page. Try again later or use a different domain.")
+
+        # Try primary selector from config first
         pdf_tag = soup.select_one(self.pdf_tag_selector)
-        if pdf_tag is None:
-            raise PdfTagNotFoundException(f"No pdf tag was found in the given content "
-                                          f"with the selector: {self.pdf_tag_selector}")
-        raw_url = pdf_tag.attrs.get(self.pdf_tag_attr)
-        if raw_url is None:
-            raise PdfUrlNotFoundException(f"No pdf url was found in the pdf tag: {pdf_tag.get_text()} "
-                                          f"with the attr {self.pdf_tag_attr}")
-        return raw_url
+        if pdf_tag is not None:
+            raw_url = pdf_tag.attrs.get(self.pdf_tag_attr)
+            if raw_url is not None:
+                return raw_url
+
+        # Try fallback selectors
+        for selector, attr in self.FALLBACK_SELECTORS:
+            tag = soup.select_one(selector)
+            if tag is not None:
+                url = tag.attrs.get(attr)
+                if url is not None:
+                    return url
+
+        raise PdfTagNotFoundException(
+            f"No pdf tag was found with selector '{self.pdf_tag_selector}' or any fallback selectors"
+        )
 
     def _extract_title(self) -> str:
         """Extract title from html content."""
         soup = BeautifulSoup(self.content.content, self._parser)
         soup_title = soup.title
-        if soup_title is None or len(soup_title.text) == 0 \
-                or '|' not in soup_title.text:
-            title = ""
+        if soup_title is None or len(soup_title.text.strip()) == 0:
+            return ""
+
+        title_text = soup_title.text.strip()
+        # Handle different Sci-Hub title formats:
+        #   Old: "Sci-Hub | Title | DOI"
+        #   New: "Sci-Hub. Title / Journal, Year"
+        if '|' in title_text:
+            parts = title_text.split('|')
+            title = parts[1] if len(parts) > 1 else ""
+        elif title_text.startswith('Sci-Hub.'):
+            # Remove "Sci-Hub. " prefix, then take text before " / "
+            title = title_text[len('Sci-Hub.'):].strip()
+            if ' / ' in title:
+                title = title.split(' / ')[0]
         else:
-            title = soup.title.text.split('|')[1]
+            title = title_text
         return self._clean_title(title)
 
     @staticmethod
