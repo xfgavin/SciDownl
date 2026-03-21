@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 """Crawler implementations."""
+try:
+    from curl_cffi import requests as cffi_requests
+    HAS_CURL_CFFI = True
+except ImportError:
+    HAS_CURL_CFFI = False
 import requests
 
 from .captcha import solve_altcha, is_captcha_page
@@ -21,7 +26,10 @@ class ScihubCrawler(BaseCrawler, BaseTaskStep):
         BaseCrawler.__init__(self, source)
         BaseTaskStep.__init__(self, task)
         self.scihub_url = scihub_url
-        self.sess = requests.Session()
+        if HAS_CURL_CFFI:
+            self.sess = cffi_requests.Session(impersonate='chrome')
+        else:
+            self.sess = requests.Session()
         self.service = ScihubUrlService()
 
         if self.task is not None:
@@ -31,16 +39,19 @@ class ScihubCrawler(BaseCrawler, BaseTaskStep):
 
     def _fetch(self, proxies):
         """Fetch the page from Sci-Hub. Uses GET with path for DOI/PMID,
-        falls back to POST for title searches."""
+        falls back to POST if GET returns empty content."""
         source_id = self.source[self.source.type]
 
         if self.source.type == 'title':
             # Title searches must use POST form data
             res = self.sess.post(self.scihub_url, data={'request': source_id}, proxies=proxies)
         else:
-            # DOI/PMID use GET with identifier in URL path
+            # DOI/PMID: try GET first, fall back to POST if empty
             url = f"{self.scihub_url.rstrip('/')}/{source_id}"
             res = self.sess.get(url, proxies=proxies)
+            if res.status_code in ScihubCrawler.OK_STATUS_CODES and len(res.content) == 0:
+                logger.info("GET returned empty body, retrying with POST...")
+                res = self.sess.post(self.scihub_url, data={'request': source_id}, proxies=proxies)
         return res
 
     def crawl(self) -> HtmlContent:
@@ -49,12 +60,12 @@ class ScihubCrawler(BaseCrawler, BaseTaskStep):
             logger.info(f"<- Request: scihub_url={self.scihub_url}, source={self.source}, proxies={proxies}")
 
             res = self._fetch(proxies)
-            logger.info(f"-> Response: status_code={res.status_code}, content_length={len(res.content.decode())}")
+            logger.info(f"-> Response: status_code={res.status_code}, content_length={len(res.content)}")
 
             if res.status_code not in ScihubCrawler.OK_STATUS_CODES:
                 raise RuntimeError(f"Error occurs when crawling source: {self.source}")
 
-            html_text = res.content.decode()
+            html_text = res.content.decode(errors='replace')
 
             # Handle CAPTCHA if present
             if is_captcha_page(html_text):

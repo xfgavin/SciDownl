@@ -26,15 +26,15 @@ class TestSource(unittest.TestCase):
             'raw_doi': 'doi.org/10.1145/1327452.1327492'
         }
         doi_source = DoiSource(cases.get('http_doi'))
-        self.assertEqual("doi.org/10.1145/1327452.1327492", doi_source.get_doi())
+        self.assertEqual("10.1145/1327452.1327492", doi_source.get_doi())
         self.assertEqual("http", doi_source.get_protocol())
 
         doi_source = DoiSource(cases.get('https_doi'))
-        self.assertEqual("doi.org/10.1145/1327452.1327492", doi_source.get_doi())
+        self.assertEqual("10.1145/1327452.1327492", doi_source.get_doi())
         self.assertEqual("https", doi_source.get_protocol())
 
         doi_source = DoiSource(cases.get('raw_doi'))
-        self.assertEqual("doi.org/10.1145/1327452.1327492", doi_source.get_doi())
+        self.assertEqual("10.1145/1327452.1327492", doi_source.get_doi())
         self.assertEqual("https", doi_source.get_protocol())
 
     def test_create_pmid_source(self):

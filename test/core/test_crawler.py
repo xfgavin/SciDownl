@@ -2,6 +2,7 @@ import unittest
 
 from scidownl.core.source import PmidSource, DoiSource
 from scidownl.core.crawler import ScihubCrawler
+from scidownl.exception import CrawlException
 
 
 class TestCrawler(unittest.TestCase):
@@ -17,9 +18,10 @@ class TestCrawler(unittest.TestCase):
         doi_source = DoiSource('10.1016/bs.apcsb.2019.08.001')
         ScihubCrawler(doi_source, scihub_url).crawl()
 
-        # Test crawling a non-exist PMID.
+        # Test crawling a non-existent PMID should raise an error.
         pmid_source = PmidSource(0000)
-        ScihubCrawler(pmid_source, scihub_url).crawl()
+        with self.assertRaises(CrawlException):
+            ScihubCrawler(pmid_source, scihub_url).crawl()
 
 
 if __name__ == '__main__':

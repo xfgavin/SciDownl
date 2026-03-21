@@ -33,11 +33,25 @@ class CrawlingScihubDomainUpdater(DomainUpdater):
         html = requests.get(self.domain_source_url).text
         domain_urls = re.findall(self._domain_url_pattern, html)
 
-        # Drop duplicates.
-        domain_urls = list(set(domain_urls))
+        # Drop duplicates and normalize (strip trailing slash, remove www.).
+        normalized = set()
+        for url in domain_urls:
+            url = url.rstrip('/')
+            url = re.sub(r'://www\.', '://', url)
+            normalized.add(url)
+        domain_urls = list(normalized)
+
         # Exclude invalid urls.
         available_domain_urls = self._exclude_domain_urls(domain_urls)
         logger.info(f"Found {len(available_domain_urls)} valid SciHub domains in total: {available_domain_urls}")
+
+        # Generate both http and https variants for each domain.
+        all_urls = set()
+        for url in available_domain_urls:
+            for proto in ['http://', 'https://']:
+                domain = re.sub(r'^https?://', '', url)
+                all_urls.add(proto + domain)
+        available_domain_urls = list(all_urls)
 
         # Save to db.
         urls_to_save = [ScihubUrl(url=url) for url in available_domain_urls]

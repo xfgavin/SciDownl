@@ -47,10 +47,16 @@ class ScihubTask(BaseTask):
             logger.info(f"Choose the scihub url: {self.scihub_url}")
             return self._run(self.scihub_url)
 
-        # Update scihub domains if empty.
-        if len(self.scihub_url_chooser) == 0:
+        # Always refresh scihub domains from the online source
+        # to ensure we have the latest working mirrors.
+        try:
             self.updater.update_domains()
             self.scihub_url_chooser = self.scihub_url_chooser_cls()
+        except Exception as e:
+            logger.warning(f"Failed to refresh SciHub domains: {e}")
+            if len(self.scihub_url_chooser) == 0:
+                logger.error("No SciHub domains available.")
+                return
 
         for i, scihub_url in enumerate(self.scihub_url_chooser):
             try:
