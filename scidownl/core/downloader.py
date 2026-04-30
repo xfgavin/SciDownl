@@ -31,29 +31,39 @@ class UrlDownloader(BaseDownloader, BaseTaskStep):
         try:
             url = self.information.get_url()
             proxies = self.task.context.get('proxies', {}) if self.task is not None else {}
-            res = requests.get(url, stream=True, proxies=proxies)
-            total_length = res.headers.get('content-length')
-
-            with open(out, "wb") as f:
-                if total_length is None:
-                    # no content length header
+            # Reuse the crawler's session (curl_cffi with impersonation) to
+            # carry over DDoS-Guard cookies and browser fingerprint.
+            session = self.task.context.get('session', None) if self.task is not None else None
+            if session is not None:
+                # curl_cffi's .content is empty when stream=True, so download
+                # without streaming and write the content directly.
+                res = session.get(url, proxies=proxies)
+                with open(out, "wb") as f:
                     f.write(res.content)
-                else:
-                    download_length = 0
-                    total_length = int(total_length)
-                    bar_width = 50
-                    for data in res.iter_content(chunk_size=4096):
-                        download_length += len(data)
-                        f.write(data)
-                        done_width = int(bar_width * download_length / total_length)
-                        perc = int(100 * download_length / total_length)
-                        sys.stdout.write("\r%3d%% [%s%s] %s/%s"
-                                         % (perc, '=' * done_width,
-                                            ' ' * (bar_width - done_width),
-                                            download_length, total_length))
+            else:
+                res = requests.get(url, stream=True, proxies=proxies)
+                total_length = res.headers.get('content-length')
+
+                with open(out, "wb") as f:
+                    if total_length is None:
+                        # no content length header
+                        f.write(res.content)
+                    else:
+                        download_length = 0
+                        total_length = int(total_length)
+                        bar_width = 50
+                        for data in res.iter_content(chunk_size=4096):
+                            download_length += len(data)
+                            f.write(data)
+                            done_width = int(bar_width * download_length / total_length)
+                            perc = int(100 * download_length / total_length)
+                            sys.stdout.write("\r%3d%% [%s%s] %s/%s"
+                                             % (perc, '=' * done_width,
+                                                ' ' * (bar_width - done_width),
+                                                download_length, total_length))
+                            sys.stdout.flush()
+                        sys.stdout.write('\n')
                         sys.stdout.flush()
-                    sys.stdout.write('\n')
-                    sys.stdout.flush()
             _, filename = os.path.split(out)
             logger.info(f"↓ Successfully download the url to: {out}")
 

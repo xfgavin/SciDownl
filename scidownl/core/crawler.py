@@ -36,6 +36,7 @@ class ScihubCrawler(BaseCrawler, BaseTaskStep):
             self.task.context['source'] = source
             self.task.context['referer'] = scihub_url
             self.task.context['status'] = 'crawling'
+            self.task.context['session'] = self.sess
 
     def _fetch(self, proxies):
         """Fetch the page from Sci-Hub. Uses GET with path for DOI/PMID,
